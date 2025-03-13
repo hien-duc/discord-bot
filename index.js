@@ -3,6 +3,9 @@ const { Client, GatewayIntentBits, Collection } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 
+// Configure port for Render deployment
+const PORT = process.env.PORT || 3000;
+
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -66,3 +69,14 @@ process.on('unhandledRejection', error => {
 
 // Login to Discord
 client.login(process.env.DISCORD_TOKEN);
+
+// Start HTTP server to keep the bot alive
+const http = require('http');
+const server = http.createServer((req, res) => {
+    res.writeHead(200);
+    res.end('Discord bot is running!');
+});
+
+server.listen(PORT, () => {
+    console.log(`Server is running on port ${PORT}`);
+});
