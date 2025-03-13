@@ -107,6 +107,76 @@ class MusicPlayer {
             this.processQueue(message);
         }
     }
+
+    async skip(message) {
+        const guildId = message.guild.id;
+        const queue = this.queues.get(guildId);
+        const player = this.players.get(guildId);
+
+        if (!queue || queue.length === 0) {
+            return 'No songs in the queue!';
+        }
+
+        player.stop();
+        return 'Skipped the current song!';
+    }
+
+    async pause(message) {
+        const guildId = message.guild.id;
+        const player = this.players.get(guildId);
+
+        if (player.state.status === AudioPlayerStatus.Playing) {
+            player.pause();
+            return 'Paused the current song!';
+        }
+        return 'No song is currently playing!';
+    }
+
+    async resume(message) {
+        const guildId = message.guild.id;
+        const player = this.players.get(guildId);
+
+        if (player.state.status === AudioPlayerStatus.Paused) {
+            player.unpause();
+            return 'Resumed the current song!';
+        }
+        return 'The song is not paused!';
+    }
+
+    async stop(message) {
+        const guildId = message.guild.id;
+        const queue = this.queues.get(guildId);
+        const player = this.players.get(guildId);
+
+        if (queue) {
+            queue.length = 0;
+        }
+
+        player.stop();
+        return 'Stopped playing and cleared the queue!';
+    }
+
+    getQueue(guildId) {
+        return this.queues.get(guildId);
+    }
+
+    async setVolume(message, volume) {
+        const guildId = message.guild.id;
+        const player = this.players.get(guildId);
+        const queue = this.queues.get(guildId);
+
+        if (!queue || queue.length === 0) {
+            return 'No songs are currently playing!';
+        }
+
+        if (player.state.status === AudioPlayerStatus.Playing ||
+            player.state.status === AudioPlayerStatus.Paused) {
+            const resource = player.state.resource;
+            resource.volume.setVolume(volume / 100);
+            return `Volume set to ${volume}%`;
+        }
+        return 'No song is currently playing!';
+    }
 }
 
 module.exports = new MusicPlayer();
