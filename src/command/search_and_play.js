@@ -1,34 +1,34 @@
-const Discord = require('discord.js');
-const { SpotifyAPI, YouTubeAPI } = require('../api');
+const { SlashCommandBuilder } = require('discord.js');
+const musicPlayer = require('../utils/musicPlayer');
 
-async function handleSearchAndPlay(message, args) {
-    const query = args.join(' ');
-    try {
-        let songUrl;
-        if (query.includes('spotify.com')) {
-            songUrl = await SpotifyAPI.getSongUrl(query);
-        } else if (query.includes('youtube.com')) {
-            songUrl = query;
-        } else {
-            songUrl = await YouTubeAPI.searchSong(query);
+module.exports = {
+    data: new SlashCommandBuilder()
+        .setName('play')
+        .setDescription('Search and play a song')
+        .addStringOption(option =>
+            option.setName('query')
+                .setDescription('Song name or URL')
+                .setRequired(true)
+        ),
+    async execute(interaction) {
+        await interaction.deferReply();
+
+        try {
+            if (!interaction.member.voice.channel) {
+                return await interaction.editReply('You must be in a voice channel to use this command!');
+            }
+
+            const query = interaction.options.getString('query');
+            const result = await musicPlayer.play(interaction, query);
+
+            if (result) {
+                await interaction.editReply(result);
+            } else {
+                await interaction.editReply('Started playing the song!');
+            }
+        } catch (error) {
+            console.error('Error in play command:', error);
+            await interaction.editReply('An error occurred while trying to play the song.');
         }
-        if (songUrl) {
-            message.channel.send(`Playing song: ${songUrl}`);
-        } else {
-            message.channel.send('Song not found.');
-        }
-    } catch (error) {
-        console.error('Error searching or playing song:', error);
-        message.channel.send('An error occurred while searching or playing the song.');
-    }
-}
-
-module.exports = { handleSearchAndPlay };
-
-const client = new Discord.Client({ intents: [Discord.Intents.FLAGS.GUILDS, Discord.Intents.FLAGS.GUILD_MESSAGES] });
-
-client.on('ready', () => {
-    console.log(`Logged in as ${client.user.tag}`);
-});
-
-client.login(process.env.DISCORD_BOT_TOKEN);
+    },
+};
