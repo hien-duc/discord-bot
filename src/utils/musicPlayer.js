@@ -157,7 +157,19 @@ class MusicPlayer {
                 filter: 'audioonly',
                 quality: 'highestaudio',
                 highWaterMark: 1 << 25,
-                dlChunkSize: 0
+                dlChunkSize: 1024 * 1024, // 1MB chunks for better streaming
+                liveBuffer: 40000, // Increased buffer for live streams
+                requestOptions: {
+                    headers: {
+                        'Cookie': '',
+                        'Accept': '*/*',
+                        'Connection': 'keep-alive',
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+                    },
+                    maxRetries: 3,
+                    maxReconnects: 3,
+                    backoff: { inc: 500, max: 10000 }
+                }
             });
 
             const resource = createAudioResource(stream);
@@ -171,14 +183,25 @@ class MusicPlayer {
             });
         } catch (error) {
             console.error('Error processing queue:', error);
+            const retryDelay = 5000;
+
             if (error.statusCode === 429) {
                 message.channel.send('Rate limit reached. Retrying in a few moments...');
-                setTimeout(() => this.processQueue(message), 5000);
-            } else if (error.statusCode === 410 || error.message?.includes('Video unavailable') || error.message?.includes('Sign in')) {
-                message.channel.send(`Cannot play ${currentSong.title} - Video is no longer available or restricted. Skipping...`);
+                setTimeout(() => this.processQueue(message), retryDelay);
+            } else if (error.statusCode === 410) {
+                message.channel.send(`Cannot play ${currentSong.title} - Video is no longer available. Skipping...`);
+                queue.shift();
+                this.processQueue(message);
+            } else if (error.statusCode === 403) {
+                message.channel.send(`Cannot play ${currentSong.title} - Video is age restricted or region locked. Skipping...`);
+                queue.shift();
+                this.processQueue(message);
+            } else if (error.message?.includes('Video unavailable') || error.message?.includes('Sign in') || error.message?.includes('Private video')) {
+                message.channel.send(`Cannot play ${currentSong.title} - Video is unavailable or restricted. Skipping...`);
                 queue.shift();
                 this.processQueue(message);
             } else {
+                console.error('Detailed error:', error);
                 message.channel.send(`Error playing ${currentSong.title}. Skipping...`);
                 queue.shift();
                 this.processQueue(message);
