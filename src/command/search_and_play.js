@@ -11,8 +11,6 @@ module.exports = {
                 .setRequired(true)
         ),
     async execute(interaction) {
-        await interaction.deferReply();
-
         try {
             if (!interaction.member.voice.channel) {
                 return await interaction.editReply('You must be in a voice channel to use this command!');
