@@ -8,9 +8,6 @@ A feature-rich Discord music bot that allows you to play music in your Discord s
 - Queue system for multiple songs
 - Automatic voice channel management
 - Slash command interface
-- Volume control
-- Pause and resume functionality
-- Skip and stop commands
 
 ## Prerequisites
 
@@ -44,68 +41,37 @@ A feature-rich Discord music bot that allows you to play music in your Discord s
 
 ## Usage
 
-The bot uses slash commands for all interactions. Here's a comprehensive guide to all available commands:
+The bot uses slash commands for all interactions. Here's how to use the available commands:
 
-### Music Playback Commands
+### Playing Music
 
-1. `/play`
-   - Play music from YouTube links or search queries
-   - Usage: `/play query: <song name or URL>`
-   - Example: `/play query: never gonna give you up`
-   - The bot will join your voice channel automatically
+1. Join a voice channel in your Discord server
+2. Use the `/play` command followed by your search query or YouTube URL:
+   ```
+   /play query: never gonna give you up
+   ```
+   or
+   ```
+   /play query: https://www.youtube.com/watch?v=dQw4w9WgXcQ
+   ```
 
-2. `/pause`
-   - Pause the currently playing song
-   - The song can be resumed later using the resume command
+### Queue System
 
-3. `/resume`
-   - Resume a paused song
-   - Only works if there's a song that was previously paused
+- Songs are automatically queued if something is already playing
+- The bot will announce the currently playing song
+- When a song finishes, the next song in the queue will automatically play
 
-4. `/stop`
-   - Stop the current playback and clear the queue
-   - The bot will leave the voice channel
+## Example Usage
 
-5. `/skip`
-   - Skip the currently playing song
-   - If there are songs in the queue, the next song will start playing
+1. Join a voice channel
+2. Type `/play query: your favorite song`
+3. The bot will:
+   - Join your voice channel
+   - Search for the song
+   - Start playing the music
+   - Display the current song title
 
-6. `/volume`
-   - Adjust the playback volume
-   - Usage: `/volume level: <0-100>`
-   - Example: `/volume level: 50`
-
-### Queue Management
-
-1. `/queue`
-   - Display the current song queue
-   - Shows the currently playing song and upcoming songs
-   - Each entry shows the song title and who requested it
-
-### Voice Channel Behavior
-
-- The bot automatically joins your voice channel when you use the `/play` command
-- You must be in a voice channel to use music-related commands
-- The bot will automatically leave the voice channel after a period of inactivity
-- If you're in a different voice channel, the bot will move to your channel when you use `/play`
-
-### Best Practices
-
-1. Queue Management
-   - Songs are automatically queued if something is already playing
-   - Use `/queue` to check the current playlist
-   - Use `/skip` to move to the next song
-   - Use `/stop` to clear the entire queue
-
-2. Volume Control
-   - Start with 50% volume and adjust as needed
-   - Keep volume below 100% to avoid distortion
-   - Volume settings persist until the bot is restarted
-
-3. Voice Channel Tips
-   - Join a voice channel before using any music commands
-   - Ensure the bot has permissions to join and speak in your channel
-   - One bot instance can play in multiple servers simultaneously
+If you add more songs while one is playing, they'll be added to the queue and played in order.
 
 ## Troubleshooting
 
@@ -123,11 +89,6 @@ The bot uses slash commands for all interactions. Here's a comprehensive guide t
    - Check your internet connection
    - Ensure the bot has stable internet access
    - Verify the bot has persistent permissions
-
-4. **Queue issues**
-   - If songs aren't queuing, check if the bot has proper permissions
-   - Use `/queue` to verify your song was added
-   - If the queue seems stuck, use `/stop` and start fresh
 
 ## Contributing
 
