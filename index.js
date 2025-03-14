@@ -43,19 +43,57 @@ client.on('interactionCreate', async interaction => {
     if (!command) return;
 
     try {
-            content: 'There was an error executing this command!',
+        await command.execute(interaction);
+    } catch (error) {
+        console.error('Error executing command:', error);
+        let errorMessage = 'There was an error executing this command!';
+
+        // Handle specific error types
+        if (error.message?.includes('Status code: 429')) {
+            errorMessage = 'YouTube rate limit reached. Please try again in a few minutes.';
+        } else if (error.message?.includes('Video unavailable')) {
+            errorMessage = 'This video is unavailable or restricted. Please try another one.';
+        } else if (error.message?.includes('Sign in')) {
+            errorMessage = 'This video requires age verification or sign-in. Please try another one.';
+        } else if (error.code === 'VOICE_CONNECTION_ERROR') {
+            errorMessage = 'Failed to connect to voice channel. Please check your connection.';
+        }
+
+        const reply = {
+            content: errorMessage,
             ephemeral: true
         };
+
         if (interaction.deferred || interaction.replied) {
             await interaction.editReply(reply);
         } else {
-          
+            await interaction.reply(reply);
+        }
+    }
+});
 
+// Voice connection error handling
+client.on('voiceStateUpdate', (oldState, newState) => {
+    // Handle bot disconnection
+    if (oldState.member.id === client.user.id && !newState.channelId) {
+        const guildId = oldState.guild.id;
+        // Clean up any music player resources if needed
+        const musicPlayer = require('./src/utils/musicPlayer');
+        musicPlayer.stop({ guild: { id: guildId } });
+    }
+});
 
-/ Error dling
-ient.on('err', error => {
+// Error handling
+client.on('error', error => {
+    console.error('Discord client error:', error);
+});
+
 process.on('unhandledRejection', error => {
     console.error('Unhandled promise rejection:', error);
+    // Attempt to recover from common errors
+    if (error.code === 'VOICE_CONNECTION_TIMEOUT') {
+        console.log('Attempting to recover from voice connection timeout...');
+    }
 });
 
 // Login to Discord
