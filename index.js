@@ -43,6 +43,10 @@ client.on('interactionCreate', async interaction => {
     if (!command) return;
 
     try {
+        if (interaction.deferred || interaction.replied) {
+            console.log('Interaction already acknowledged, skipping execution');
+            return;
+        }
         await command.execute(interaction);
     } catch (error) {
         console.error('Error executing command:', error);
@@ -50,10 +54,15 @@ client.on('interactionCreate', async interaction => {
             content: 'There was an error executing this command!',
             ephemeral: true
         };
-        if (interaction.deferred || interaction.replied) {
-            await interaction.editReply(reply);
-        } else {
-            await interaction.reply(reply);
+
+        try {
+            if (interaction.deferred || interaction.replied) {
+                await interaction.editReply(reply);
+            } else {
+                await interaction.reply(reply);
+            }
+        } catch (replyError) {
+            console.error('Error sending error response:', replyError);
         }
     }
 });

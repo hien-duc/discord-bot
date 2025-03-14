@@ -32,12 +32,19 @@ A feature-rich Discord music bot that allows you to play music in your Discord s
    pnpm install
    ```
 
-3. Create a `.env` file in the root directory and add your Discord bot token:
+3. Create a `.env` file in the root directory and add your Discord bot token and client ID:
    ```env
    DISCORD_TOKEN=your_bot_token_here
+   CLIENT_ID=your_client_id_here
    ```
 
-4. Start the bot:
+4. Deploy the slash commands:
+   ```bash
+   node deploy-commands.js
+   ```
+   Note: You need to run this command whenever you modify or add new slash commands.
+
+5. Start the bot:
    ```bash
    pnpm start
    ```
