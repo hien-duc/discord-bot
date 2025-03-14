@@ -2,6 +2,17 @@ const { createAudioPlayer, createAudioResource, joinVoiceChannel, AudioPlayerSta
 const { Collection } = require('discord.js');
 const play = require('play-dl');
 
+// Configure play-dl with YouTube cookie
+play.setToken({
+    youtube: {
+        cookie: process.env.YOUTUBE_COOKIE || '' // Get cookie from environment variable
+    }
+});
+
+// Utility function to add delay between requests
+const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+const REQUEST_DELAY = 2000; // 2 seconds delay between requests
+
 class MusicPlayer {
     constructor() {
         this.queues = new Collection();
@@ -35,6 +46,7 @@ class MusicPlayer {
                 return query;
             }
 
+            await delay(REQUEST_DELAY);
             const searched = await play.search(query, { limit: 1 });
             if (searched.length === 0) return null;
             return searched[0].url;
@@ -57,6 +69,7 @@ class MusicPlayer {
             }
 
             const queue = this.queues.get(guildId);
+            await delay(REQUEST_DELAY);
             const songInfo = await play.video_info(songUrl);
             const song = {
                 title: songInfo.video_details.title,
@@ -89,6 +102,7 @@ class MusicPlayer {
 
         const currentSong = queue[0];
         try {
+            await delay(REQUEST_DELAY);
             const stream = await play.stream(currentSong.url);
             const resource = createAudioResource(stream.stream, {
                 inputType: stream.type
