@@ -43,6 +43,10 @@ client.on('interactionCreate', async interaction => {
     if (!command) return;
 
     try {
+        // Defer the reply immediately for commands that might take time
+        if (['play', 'search'].includes(interaction.commandName)) {
+            await interaction.deferReply();
+        }
         await command.execute(interaction);
     } catch (error) {
         console.error('Error executing command:', error);
@@ -57,6 +61,9 @@ client.on('interactionCreate', async interaction => {
             errorMessage = 'This video requires age verification or sign-in. Please try another one.';
         } else if (error.code === 'VOICE_CONNECTION_ERROR') {
             errorMessage = 'Failed to connect to voice channel. Please check your connection.';
+        } else if (error.code === 40060) {
+            console.warn('Interaction already acknowledged, skipping error response');
+            return;
         }
 
         const reply = {
@@ -64,10 +71,14 @@ client.on('interactionCreate', async interaction => {
             ephemeral: true
         };
 
-        if (interaction.deferred || interaction.replied) {
-            await interaction.editReply(reply);
-        } else {
-            await interaction.reply(reply);
+        try {
+            if (interaction.deferred) {
+                await interaction.editReply(reply);
+            } else if (!interaction.replied) {
+                await interaction.reply(reply);
+            }
+        } catch (replyError) {
+            console.error('Error sending reply:', replyError);
         }
     }
 });
