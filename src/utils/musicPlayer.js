@@ -6,6 +6,12 @@ class MusicPlayer {
     constructor() {
         this.queues = new Collection();
         this.players = new Collection();
+        this.requestQueue = [];
+        this.isProcessingRequest = false;
+        this.lastRequestTime = 0;
+        this.retryCount = 0;
+        this.cooldownPeriod = 2000; // 2 seconds between requests
+        this.maxRetries = 3;
     }
 
     async join(message) {
@@ -29,15 +35,60 @@ class MusicPlayer {
         return connection;
     }
 
+    async processRequestQueue() {
+        if (this.isProcessingRequest || this.requestQueue.length === 0) return;
+
+        this.isProcessingRequest = true;
+        const currentTime = Date.now();
+        const timeSinceLastRequest = currentTime - this.lastRequestTime;
+
+        if (timeSinceLastRequest < this.cooldownPeriod) {
+            await new Promise(resolve => setTimeout(resolve, this.cooldownPeriod - timeSinceLastRequest));
+        }
+
+        const request = this.requestQueue.shift();
+        try {
+            const result = await request.execute();
+            request.resolve(result);
+            this.retryCount = 0;
+            this.lastRequestTime = Date.now();
+        } catch (error) {
+            if (error.statusCode === 429 && this.retryCount < this.maxRetries) {
+                this.retryCount++;
+                const backoffTime = Math.pow(2, this.retryCount) * 1000;
+                await new Promise(resolve => setTimeout(resolve, backoffTime));
+                this.requestQueue.unshift(request);
+            } else {
+                request.reject(error);
+            }
+        } finally {
+            this.isProcessingRequest = false;
+            this.processRequestQueue();
+        }
+    }
+
+    async queueRequest(requestFn) {
+        return new Promise((resolve, reject) => {
+            this.requestQueue.push({
+                execute: requestFn,
+                resolve,
+                reject
+            });
+            this.processRequestQueue();
+        });
+    }
+
     async search(query) {
         try {
             if (query.includes('youtube.com') || query.includes('youtu.be')) {
                 return query;
             }
 
-            const searched = await play.search(query, { limit: 1 });
-            if (searched.length === 0) return null;
-            return searched[0].url;
+            return await this.queueRequest(async () => {
+                const searched = await play.search(query, { limit: 1 });
+                if (searched.length === 0) return null;
+                return searched[0].url;
+            });
         } catch (error) {
             console.error('Error searching for song:', error);
             return null;
@@ -57,7 +108,10 @@ class MusicPlayer {
             }
 
             const queue = this.queues.get(guildId);
-            const songInfo = await play.video_info(songUrl);
+            const songInfo = await this.queueRequest(async () => {
+                return await play.video_info(songUrl);
+            });
+
             const song = {
                 title: songInfo.video_details.title,
                 url: songUrl,
@@ -74,6 +128,9 @@ class MusicPlayer {
             }
         } catch (error) {
             console.error('Error playing song:', error);
+            if (error.statusCode === 429) {
+                throw new Error('We\'re being rate limited by YouTube. Please try again in a few moments.');
+            }
             throw error;
         }
     }
@@ -89,7 +146,10 @@ class MusicPlayer {
 
         const currentSong = queue[0];
         try {
-            const stream = await play.stream(currentSong.url);
+            const stream = await this.queueRequest(async () => {
+                return await play.stream(currentSong.url);
+            });
+
             const resource = createAudioResource(stream.stream, {
                 inputType: stream.type
             });
@@ -103,8 +163,13 @@ class MusicPlayer {
             });
         } catch (error) {
             console.error('Error processing queue:', error);
-            queue.shift();
-            this.processQueue(message);
+            if (error.statusCode === 429) {
+                message.channel.send('Rate limit reached. Retrying in a few moments...');
+                setTimeout(() => this.processQueue(message), 5000);
+            } else {
+                queue.shift();
+                this.processQueue(message);
+            }
         }
     }
 
