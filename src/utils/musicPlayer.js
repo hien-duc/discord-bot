@@ -19,8 +19,8 @@ class MusicPlayer {
         this.players = new Collection();
     }
 
-    async join(message) {
-        const voiceChannel = message.member.voice.channel;
+    async join(interaction) {
+        const voiceChannel = interaction.member.voice.channel;
         if (!voiceChannel) {
             throw new Error('You must be in a voice channel!');
         }
@@ -56,9 +56,9 @@ class MusicPlayer {
         }
     }
 
-    async play(message, query) {
+    async play(interaction, query) {
         try {
-            const guildId = message.guild.id;
+            const guildId = interaction.guild.id;
             if (!this.queues.has(guildId)) {
                 this.queues.set(guildId, []);
             }
@@ -74,14 +74,14 @@ class MusicPlayer {
             const song = {
                 title: songInfo.video_details.title,
                 url: songUrl,
-                requestedBy: message.author.tag
+                requestedBy: interaction.user.tag
             };
 
             queue.push(song);
 
             if (queue.length === 1) {
-                await this.join(message);
-                await this.processQueue(message);
+                await this.join(interaction);
+                await this.processQueue(interaction);
             } else {
                 return `Added to queue: ${song.title}`;
             }
@@ -91,8 +91,8 @@ class MusicPlayer {
         }
     }
 
-    async processQueue(message) {
-        const guildId = message.guild.id;
+    async processQueue(interaction) {
+        const guildId = interaction.guild.id;
         const queue = this.queues.get(guildId);
         const player = this.players.get(guildId);
 
@@ -109,11 +109,11 @@ class MusicPlayer {
             });
 
             player.play(resource);
-            message.channel.send(`Now playing: ${currentSong.title}`);
+            await interaction.channel.send(`Now playing: ${currentSong.title}`);
 
             player.once(AudioPlayerStatus.Idle, () => {
                 queue.shift();
-                this.processQueue(message);
+                this.processQueue(interaction);
             });
         } catch (error) {
             console.error('Error processing queue:', error);
@@ -122,8 +122,8 @@ class MusicPlayer {
         }
     }
 
-    async skip(message) {
-        const guildId = message.guild.id;
+    async skip(interaction) {
+        const guildId = interaction.guild.id;
         const queue = this.queues.get(guildId);
         const player = this.players.get(guildId);
 
@@ -135,8 +135,8 @@ class MusicPlayer {
         return 'Skipped the current song!';
     }
 
-    async pause(message) {
-        const guildId = message.guild.id;
+    async pause(interaction) {
+        const guildId = interaction.guild.id;
         const player = this.players.get(guildId);
 
         if (player.state.status === AudioPlayerStatus.Playing) {
@@ -146,8 +146,8 @@ class MusicPlayer {
         return 'No song is currently playing!';
     }
 
-    async resume(message) {
-        const guildId = message.guild.id;
+    async resume(interaction) {
+        const guildId = interaction.guild.id;
         const player = this.players.get(guildId);
 
         if (player.state.status === AudioPlayerStatus.Paused) {
@@ -157,8 +157,8 @@ class MusicPlayer {
         return 'The song is not paused!';
     }
 
-    async stop(message) {
-        const guildId = message.guild.id;
+    async stop(interaction) {
+        const guildId = interaction.guild.id;
         const queue = this.queues.get(guildId);
         const player = this.players.get(guildId);
 
@@ -174,8 +174,8 @@ class MusicPlayer {
         return this.queues.get(guildId);
     }
 
-    async setVolume(message, volume) {
-        const guildId = message.guild.id;
+    async setVolume(interaction, volume) {
+        const guildId = interaction.guild.id;
         const player = this.players.get(guildId);
         const queue = this.queues.get(guildId);
 
