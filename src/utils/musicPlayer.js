@@ -1,13 +1,7 @@
 const { createAudioPlayer, createAudioResource, joinVoiceChannel, AudioPlayerStatus } = require('@discordjs/voice');
 const { Collection } = require('discord.js');
-const play = require('play-dl');
-
-// Configure play-dl with YouTube cookie
-play.setToken({
-    youtube: {
-        cookie: process.env.YOUTUBE_COOKIE || '' // Get cookie from environment variable
-    }
-});
+const ytdl = require('ytdl-core');
+const ytSearch = require('yt-search');
 
 // Utility function to add delay between requests
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -47,9 +41,9 @@ class MusicPlayer {
             }
 
             await delay(REQUEST_DELAY);
-            const searched = await play.search(query, { limit: 1 });
-            if (searched.length === 0) return null;
-            return searched[0].url;
+            const searched = await ytSearch(query);
+            if (!searched.videos.length) return null;
+            return searched.videos[0].url;
         } catch (error) {
             console.error('Error searching for song:', error);
             return null;
@@ -70,9 +64,9 @@ class MusicPlayer {
 
             const queue = this.queues.get(guildId);
             await delay(REQUEST_DELAY);
-            const songInfo = await play.video_info(songUrl);
+            const songInfo = await ytdl.getInfo(songUrl);
             const song = {
-                title: songInfo.video_details.title,
+                title: songInfo.videoDetails.title,
                 url: songUrl,
                 requestedBy: interaction.user.tag
             };
@@ -103,10 +97,12 @@ class MusicPlayer {
         const currentSong = queue[0];
         try {
             await delay(REQUEST_DELAY);
-            const stream = await play.stream(currentSong.url);
-            const resource = createAudioResource(stream.stream, {
-                inputType: stream.type
+            const stream = ytdl(currentSong.url, {
+                filter: 'audioonly',
+                quality: 'highestaudio',
+                highWaterMark: 1 << 25
             });
+            const resource = createAudioResource(stream);
 
             player.play(resource);
             await interaction.channel.send(`Now playing: ${currentSong.title}`);
