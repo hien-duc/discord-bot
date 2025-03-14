@@ -131,6 +131,12 @@ class MusicPlayer {
             console.error('Error playing song:', error);
             if (error.statusCode === 429) {
                 throw new Error('We\'re being rate limited by YouTube. Please try again in a few moments.');
+            } else if (error.statusCode === 410) {
+                throw new Error('This video is no longer available. Please try another one.');
+            } else if (error.message?.includes('Video unavailable')) {
+                throw new Error('This video is unavailable or restricted. Please try another one.');
+            } else if (error.message?.includes('Sign in')) {
+                throw new Error('This video requires age verification or sign-in. Please try another one.');
             }
             throw error;
         }
@@ -168,7 +174,12 @@ class MusicPlayer {
             if (error.statusCode === 429) {
                 message.channel.send('Rate limit reached. Retrying in a few moments...');
                 setTimeout(() => this.processQueue(message), 5000);
+            } else if (error.statusCode === 410 || error.message?.includes('Video unavailable') || error.message?.includes('Sign in')) {
+                message.channel.send(`Cannot play ${currentSong.title} - Video is no longer available or restricted. Skipping...`);
+                queue.shift();
+                this.processQueue(message);
             } else {
+                message.channel.send(`Error playing ${currentSong.title}. Skipping...`);
                 queue.shift();
                 this.processQueue(message);
             }
