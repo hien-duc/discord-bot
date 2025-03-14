@@ -40,12 +40,23 @@ jest.mock('@discordjs/voice', () => ({
     }
 }));
 
-// Mock play-dl
-jest.mock('play-dl', () => ({
-    search: jest.fn(),
-    video_info: jest.fn(),
-    stream: jest.fn()
+// Mock ytdl-core
+jest.mock('ytdl-core', () => ({
+    getInfo: jest.fn().mockResolvedValue({
+        videoDetails: {
+            title: 'Test Song'
+        }
+    }),
+    default: jest.fn().mockReturnValue({})
 }));
+
+// Mock fetch
+global.fetch = jest.fn().mockImplementation(async (url) => {
+    if (url.includes('nonexistent')) {
+        return { text: async () => '<html>no match</html>' };
+    }
+    return { text: async () => '<html>watch?v=test123</html>' };
+});
 
 describe('MusicPlayer', () => {
     beforeEach(() => {
@@ -80,15 +91,14 @@ describe('MusicPlayer', () => {
         });
 
         it('should search and return first result for keywords', async () => {
-            const searchResult = [{ url: 'https://youtube.com/watch?v=test' }];
-            require('play-dl').search.mockResolvedValue(searchResult);
-
             const result = await musicPlayer.search('test song');
-            expect(result).toBe(searchResult[0].url);
+            expect(result).toBe('https://www.youtube.com/watch?v=test123');
         });
 
         it('should return null for failed searches', async () => {
-            require('play-dl').search.mockResolvedValue([]);
+            global.fetch.mockResolvedValueOnce({
+                text: jest.fn().mockResolvedValue('<html>no match</html>')
+            });
             const result = await musicPlayer.search('nonexistent song');
             expect(result).toBeNull();
         });
@@ -96,16 +106,25 @@ describe('MusicPlayer', () => {
 
     describe('play', () => {
         beforeEach(() => {
-            require('play-dl').search.mockResolvedValue([{ url: 'https://youtube.com/watch?v=test' }]);
-            require('play-dl').video_info.mockResolvedValue({
-                video_details: {
-                    title: 'Test Song'
+            global.fetch.mockImplementation(async (url) => {
+                if (url.includes('nonexistent')) {
+                    return { text: async () => '<html>no match</html>' };
                 }
+                return { text: async () => '<html>watch?v=test123</html>' };
             });
-            require('play-dl').stream.mockResolvedValue({
-                stream: {},
-                type: 'audio/opus'
+            require('ytdl-core').getInfo.mockImplementation(async (url) => {
+                if (url.includes('rate-limit-test')) {
+                    const error = new Error('Rate limit exceeded');
+                    error.statusCode = 429;
+                    throw error;
+                }
+                return {
+                    videoDetails: {
+                        title: 'Test Song'
+                    }
+                };
             });
+            require('ytdl-core').default.mockReturnValue({});
         });
 
         it('should add song to queue and start playing if queue is empty', async () => {
@@ -125,25 +144,42 @@ describe('MusicPlayer', () => {
         });
 
         it('should throw error if no song is found', async () => {
-            require('play-dl').search.mockResolvedValue([]);
+            global.fetch.mockResolvedValueOnce({
+                text: jest.fn().mockResolvedValue('<html>no match</html>')
+            });
             await expect(musicPlayer.play(mockMessage, 'nonexistent song'))
                 .rejects
                 .toThrow('No song found!');
+        });
+
+        it('should handle rate limiting', async () => {
+            await expect(musicPlayer.play(mockMessage, 'rate-limit-test'))
+                .rejects
+                .toThrow('We\'re being rate limited by YouTube. Please try again in a few moments.');
         });
     });
 
     describe('processQueue', () => {
         beforeEach(() => {
-            require('play-dl').search.mockResolvedValue([{ url: 'https://youtube.com/watch?v=test' }]);
-            require('play-dl').video_info.mockResolvedValue({
-                video_details: {
-                    title: 'Test Song'
+            global.fetch.mockImplementation(async (url) => {
+                if (url.includes('nonexistent')) {
+                    return { text: async () => '<html>no match</html>' };
                 }
+                return { text: async () => '<html>watch?v=test123</html>' };
             });
-            require('play-dl').stream.mockResolvedValue({
-                stream: {},
-                type: 'audio/opus'
+            require('ytdl-core').getInfo.mockImplementation(async (url) => {
+                if (url.includes('rate-limit-test')) {
+                    const error = new Error('Rate limit exceeded');
+                    error.statusCode = 429;
+                    throw error;
+                }
+                return {
+                    videoDetails: {
+                        title: 'Test Song'
+                    }
+                };
             });
+            require('ytdl-core').default.mockReturnValue({});
         });
 
         afterEach(() => {
@@ -160,10 +196,10 @@ describe('MusicPlayer', () => {
 
             const player = musicPlayer.players.get('456');
             const onceHandler = player.once.mock.calls[0][1];
-            
+
             // Simulate song end
             onceHandler();
-            
+
             expect(musicPlayer.queues.get('456')).toHaveLength(1);
             expect(mockMessage.channel.send).toHaveBeenCalledWith('Now playing: Test Song');
         });

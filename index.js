@@ -43,35 +43,17 @@ client.on('interactionCreate', async interaction => {
     if (!command) return;
 
     try {
-        if (interaction.deferred || interaction.replied) {
-            console.log('Interaction already acknowledged, skipping execution');
-            return;
-        }
-        await command.execute(interaction);
-    } catch (error) {
-        console.error('Error executing command:', error);
-        const reply = {
             content: 'There was an error executing this command!',
             ephemeral: true
         };
+        if (interaction.deferred || interaction.replied) {
+            await interaction.editReply(reply);
+        } else {
+          
 
-        try {
-            if (interaction.deferred || interaction.replied) {
-                await interaction.editReply(reply);
-            } else {
-                await interaction.reply(reply);
-            }
-        } catch (replyError) {
-            console.error('Error sending error response:', replyError);
-        }
-    }
-});
 
-// Error handling
-client.on('error', error => {
-    console.error('Discord client error:', error);
-});
-
+/ Error dling
+ient.on('err', error => {
 process.on('unhandledRejection', error => {
     console.error('Unhandled promise rejection:', error);
 });
