@@ -180,4 +180,58 @@ class MusicPlayer {
     }
 }
 
-module.exports = MusicPlayer;
+// Create and export a singleton instance
+let musicPlayerInstance = null;
+
+function initialize(client) {
+    if (!musicPlayerInstance) {
+        musicPlayerInstance = new MusicPlayer(client);
+    }
+    return musicPlayerInstance;
+}
+
+module.exports = {
+    initialize,
+    play: (interaction, query) => {
+        if (!musicPlayerInstance) {
+            throw new Error('MusicPlayer not initialized');
+        }
+        return musicPlayerInstance.play(interaction, query);
+    },
+    skip: (interaction) => {
+        if (!musicPlayerInstance) {
+            throw new Error('MusicPlayer not initialized');
+        }
+        return musicPlayerInstance.skip(interaction);
+    },
+    pause: (interaction) => {
+        if (!musicPlayerInstance) {
+            throw new Error('MusicPlayer not initialized');
+        }
+        return musicPlayerInstance.pause(interaction);
+    },
+    resume: (interaction) => {
+        if (!musicPlayerInstance) {
+            throw new Error('MusicPlayer not initialized');
+        }
+        return musicPlayerInstance.resume(interaction);
+    },
+    stop: (interaction) => {
+        if (!musicPlayerInstance) {
+            throw new Error('MusicPlayer not initialized');
+        }
+        return musicPlayerInstance.stop(interaction);
+    },
+    setVolume: (interaction, volume) => {
+        if (!musicPlayerInstance) {
+            throw new Error('MusicPlayer not initialized');
+        }
+        return musicPlayerInstance.setVolume(interaction, volume);
+    },
+    getQueue: (guildId) => {
+        if (!musicPlayerInstance) {
+            throw new Error('MusicPlayer not initialized');
+        }
+        return musicPlayerInstance.getQueue(guildId);
+    }
+};

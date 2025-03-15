@@ -20,7 +20,7 @@ const client = new Client({
 client.commands = new Collection();
 
 // Initialize music player
-const musicPlayer = new MusicPlayer(client);
+MusicPlayer.initialize(client);
 
 // Load commands
 const commandsPath = path.join(__dirname, 'src', 'command');
