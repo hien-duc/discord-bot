@@ -1,232 +1,134 @@
-const { createAudioPlayer, createAudioResource, joinVoiceChannel, AudioPlayerStatus } = require('@discordjs/voice');
-const { Collection } = require('discord.js');
-const ytdl = require('ytdl-core');
-const ytSearch = require('yt-search');
-
-// Utility function to add delay between requests
-const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
-const REQUEST_DELAY = 2000; // 2 seconds delay between requests
-const MAX_RETRIES = 3; // Maximum number of retries for failed requests
+const { DisTube } = require('distube');
+const { EmbedBuilder } = require('discord.js');
+const { YtDlpPlugin } = require('@distube/yt-dlp');
 
 class MusicPlayer {
-    constructor() {
-        this.queues = new Collection();
-        this.players = new Collection();
-    }
-
-    async join(interaction) {
-        const voiceChannel = interaction.member.voice.channel;
-        if (!voiceChannel) {
-            throw new Error('You must be in a voice channel!');
-        }
-
-        const connection = joinVoiceChannel({
-            channelId: voiceChannel.id,
-            guildId: voiceChannel.guild.id,
-            adapterCreator: voiceChannel.guild.voiceAdapterCreator,
+    constructor(client) {
+        this.distube = new DisTube(client, {
+            plugins: [new YtDlpPlugin()],
+            leaveOnEmpty: true,
+            leaveOnFinish: false,
+            leaveOnStop: false,
+            emitNewSongOnly: true,
+            emitAddSongWhenCreatingQueue: false,
+            emitAddListWhenCreatingQueue: false,
+            ytdlOptions: {
+                quality: 'highestaudio',
+                highWaterMark: 1 << 25
+            }
         });
 
-        if (!this.players.has(voiceChannel.guild.id)) {
-            const player = createAudioPlayer();
-            this.players.set(voiceChannel.guild.id, player);
-            connection.subscribe(player);
-        }
-
-        return connection;
+        this.setupEventListeners();
     }
 
-    async search(query) {
-        try {
-            if (query.includes('youtube.com') || query.includes('youtu.be')) {
-                return query;
-            }
-
-            for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-                try {
-                    await delay(REQUEST_DELAY * attempt); // Exponential backoff
-                    const searched = await ytSearch(query);
-                    if (!searched.videos.length) return null;
-                    return searched.videos[0].url;
-                } catch (error) {
-                    if (error.message.includes('Rate limit')) {
-                        throw error; // Let the rate limit error propagate up
-                    }
-                    if (attempt === MAX_RETRIES) throw error;
-                    console.warn(`Search attempt ${attempt} failed, retrying...`);
+    setupEventListeners() {
+        this.distube
+            .on('playSong', (queue, song) => {
+                const embed = new EmbedBuilder()
+                    .setTitle('Now Playing')
+                    .setDescription(`🎵 **${song.name}**\n👤 Requested by: ${song.user.tag}`)
+                    .setColor('#00ff00');
+                queue.textChannel.send({ embeds: [embed] });
+            })
+            .on('addSong', (queue, song) => {
+                const embed = new EmbedBuilder()
+                    .setTitle('Added to Queue')
+                    .setDescription(`🎵 **${song.name}**\n👤 Requested by: ${song.user.tag}`)
+                    .setColor('#00ff00');
+                queue.textChannel.send({ embeds: [embed] });
+            })
+            .on('error', (channel, error) => {
+                console.error('DisTube error:', error);
+                if (channel) {
+                    channel.send(`An error occurred: ${error.message.slice(0, 1979)}`);
                 }
-            }
-        } catch (error) {
-            console.error('Error searching for song:', error);
-            throw error; // Propagate the error to handle it in the play function
-        }
+            });
     }
 
     async play(interaction, query) {
+        if (!interaction.member.voice.channel) {
+            throw new Error('You must be in a voice channel!');
+        }
+
         try {
-            const guildId = interaction.guild.id;
-            if (!this.queues.has(guildId)) {
-                this.queues.set(guildId, []);
-            }
-
-            const songUrl = await this.search(query);
-            if (!songUrl) {
-                throw new Error('No song found!');
-            }
-
-            const queue = this.queues.get(guildId);
-            await delay(REQUEST_DELAY);
-            let songInfo;
-            for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-                try {
-                    await delay(REQUEST_DELAY * attempt); // Exponential backoff
-                    songInfo = await ytdl.getInfo(songUrl);
-                    break;
-                } catch (error) {
-                    if (error.statusCode === 410) {
-                        throw new Error('This video is no longer available.');
-                    }
-                    if (attempt === MAX_RETRIES) throw error;
-                    console.warn(`Get info attempt ${attempt} failed, retrying...`);
-                }
-            }
-
-            const song = {
-                title: songInfo.videoDetails.title,
-                url: songUrl,
-                requestedBy: interaction.user.tag
-            };
-
-            queue.push(song);
-
-            if (queue.length === 1) {
-                await this.join(interaction);
-                await this.processQueue(interaction);
-            } else {
-                return `Added to queue: ${song.title}`;
-            }
+            await this.distube.play(interaction.member.voice.channel, query, {
+                member: interaction.member,
+                textChannel: interaction.channel,
+                interaction
+            });
         } catch (error) {
             console.error('Error playing song:', error);
             throw error;
         }
     }
 
-    async processQueue(interaction) {
-        const guildId = interaction.guild.id;
-        const queue = this.queues.get(guildId);
-        const player = this.players.get(guildId);
-
-        if (!queue || queue.length === 0) {
-            return;
-        }
-
-        const currentSong = queue[0];
-        try {
-            await delay(REQUEST_DELAY);
-            let stream;
-            for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-                try {
-                    await delay(REQUEST_DELAY * attempt); // Exponential backoff
-                    stream = ytdl(currentSong.url, {
-                        filter: 'audioonly',
-                        quality: 'highestaudio',
-                        highWaterMark: 1 << 25
-                    });
-                    break;
-                } catch (error) {
-                    if (error.statusCode === 410) {
-                        await interaction.channel.send(`The song "${currentSong.title}" is no longer available, skipping...`);
-                        queue.shift();
-                        return this.processQueue(interaction);
-                    }
-                    if (attempt === MAX_RETRIES) throw error;
-                    console.warn(`Stream attempt ${attempt} failed, retrying...`);
-                }
-            }
-            const resource = createAudioResource(stream);
-
-            player.play(resource);
-            await interaction.channel.send(`Now playing: ${currentSong.title}`);
-
-            player.once(AudioPlayerStatus.Idle, () => {
-                queue.shift();
-                this.processQueue(interaction);
-            });
-        } catch (error) {
-            console.error('Error processing queue:', error);
-            queue.shift();
-            this.processQueue(interaction);
-        }
-    }
-
     async skip(interaction) {
-        const guildId = interaction.guild.id;
-        const queue = this.queues.get(guildId);
-        const player = this.players.get(guildId);
-
-        if (!queue || queue.length === 0) {
+        const queue = this.distube.getQueue(interaction.guildId);
+        if (!queue) {
             return 'No songs in the queue!';
         }
 
-        player.stop();
-        return 'Skipped the current song!';
+        try {
+            await queue.skip();
+            return 'Skipped the current song!';
+        } catch (error) {
+            console.error('Error skipping song:', error);
+            throw error;
+        }
     }
 
     async pause(interaction) {
-        const guildId = interaction.guild.id;
-        const player = this.players.get(guildId);
-
-        if (player.state.status === AudioPlayerStatus.Playing) {
-            player.pause();
-            return 'Paused the current song!';
+        const queue = this.distube.getQueue(interaction.guildId);
+        if (!queue) {
+            return 'No songs in the queue!';
         }
-        return 'No song is currently playing!';
+
+        if (queue.paused) {
+            return 'The song is already paused!';
+        }
+
+        try {
+            queue.pause();
+            return 'Paused the current song!';
+        } catch (error) {
+            console.error('Error pausing song:', error);
+            throw error;
+        }
     }
 
     async resume(interaction) {
-        const guildId = interaction.guild.id;
-        const player = this.players.get(guildId);
-
-        if (player.state.status === AudioPlayerStatus.Paused) {
-            player.unpause();
-            return 'Resumed the current song!';
+        const queue = this.distube.getQueue(interaction.guildId);
+        if (!queue) {
+            return 'No songs in the queue!';
         }
-        return 'The song is not paused!';
+
+        if (!queue.paused) {
+            return 'The song is not paused!';
+        }
+
+        try {
+            queue.resume();
+            return 'Resumed the current song!';
+        } catch (error) {
+            console.error('Error resuming song:', error);
+            throw error;
+        }
     }
 
     async stop(interaction) {
-        const guildId = interaction.guild.id;
-        const queue = this.queues.get(guildId);
-        const player = this.players.get(guildId);
-
-        if (queue) {
-            queue.length = 0;
+        const queue = this.distube.getQueue(interaction.guildId);
+        if (!queue) {
+            return 'No songs in the queue!';
         }
 
-        player.stop();
-        return 'Stopped playing and cleared the queue!';
-    }
-
-    getQueue(guildId) {
-        return this.queues.get(guildId);
-    }
-
-    async setVolume(interaction, volume) {
-        const guildId = interaction.guild.id;
-        const player = this.players.get(guildId);
-        const queue = this.queues.get(guildId);
-
-        if (!queue || queue.length === 0) {
-            return 'No songs are currently playing!';
+        try {
+            queue.stop();
+            return 'Stopped the music and cleared the queue!';
+        } catch (error) {
+            console.error('Error stopping music:', error);
+            throw error;
         }
-
-        if (player.state.status === AudioPlayerStatus.Playing ||
-            player.state.status === AudioPlayerStatus.Paused) {
-            const resource = player.state.resource;
-            resource.volume.setVolume(volume / 100);
-            return `Volume set to ${volume}%`;
-        }
-        return 'No song is currently playing!';
     }
 }
 
-module.exports = new MusicPlayer();
+module.exports = MusicPlayer;

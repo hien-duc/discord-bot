@@ -2,6 +2,7 @@ require('dotenv').config();
 const { Client, GatewayIntentBits, Collection } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
+const MusicPlayer = require('./src/utils/musicPlayer');
 
 // Configure port for Render deployment
 const PORT = process.env.PORT || 3000;
@@ -17,6 +18,9 @@ const client = new Client({
 });
 
 client.commands = new Collection();
+
+// Initialize music player
+const musicPlayer = new MusicPlayer(client);
 
 // Load commands
 const commandsPath = path.join(__dirname, 'src', 'command');
