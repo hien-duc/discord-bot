@@ -6,8 +6,6 @@ module.exports = {
         .setName('stop')
         .setDescription('Stop playing and clear the queue'),
     async execute(interaction) {
-        await interaction.deferReply();
-
         try {
             if (!interaction.member.voice.channel) {
                 return await interaction.editReply('You must be in a voice channel to use this command!');
