@@ -47,17 +47,30 @@ client.on('interactionCreate', async interaction => {
     } catch (error) {
         console.error('Error executing command:', error);
         const reply = {
-            content: 'There was an error executing this command!',
+            content: error.message === 'Status code: 410' ?
+                'Sorry, this video is no longer available.' :
+                'There was an error executing this command!',
             ephemeral: true
         };
+
         try {
-            if (interaction.deferred || interaction.replied) {
+            // Check if the interaction is still valid
+            if (!interaction.isRepliable()) {
+                console.log('Interaction is no longer repliable');
+                return;
+            }
+
+            if (interaction.deferred) {
                 await interaction.editReply(reply);
-            } else {
+            } else if (!interaction.replied) {
                 await interaction.reply(reply);
             }
         } catch (e) {
-            console.error('Error sending error response:', e);
+            if (e.code === 40060) {
+                console.log('Interaction already acknowledged');
+            } else {
+                console.error('Error sending error response:', e);
+            }
         }
     }
 });
