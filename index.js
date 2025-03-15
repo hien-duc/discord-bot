@@ -73,6 +73,11 @@ client.on('interactionCreate', async interaction => {
             errorMessage = error.message;
         } else if (error.message.includes('Rate limit')) {
             errorMessage = 'Please wait a moment before trying again. The bot is experiencing high traffic.';
+        } else if (error.name === 'UnrecoverableError' || error.name === 'PlayError') {
+            console.error('YouTube API error:', error);
+            errorMessage = 'Sorry, this video is unavailable. It might be region-restricted or no longer available.';
+        } else if (error.message.includes('Could not extract video data')) {
+            errorMessage = 'Could not extract video data. The video might be unavailable or region-restricted.';
         }
 
         if (shouldRespond) {

@@ -79,6 +79,14 @@ class MusicPlayer {
             console.error('Error playing song:', error);
             if (error.message.includes('Sign in to confirm your age')) {
                 throw new Error('This video has age restrictions and cannot be played.');
+            } else if (error.message.includes('Video unavailable') ||
+                (error.name === 'UnrecoverableError' && error.message.includes('Video unavailable')) ||
+                error.name === 'PlayError') {
+                throw new Error('This video is no longer available.');
+            } else if (error.message.includes('Could not extract video data')) {
+                throw new Error('Could not extract video data. The video might be unavailable or region-restricted.');
+            } else if (error.message.includes('No video id found')) {
+                throw new Error('No song found!');
             }
             throw error;
         }
