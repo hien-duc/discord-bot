@@ -43,9 +43,6 @@ client.on('interactionCreate', async interaction => {
     if (!command) return;
 
     try {
-        if (!interaction.deferred && !interaction.replied) {
-            await interaction.deferReply();
-        }
         await command.execute(interaction);
     } catch (error) {
         console.error('Error executing command:', error);
