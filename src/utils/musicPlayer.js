@@ -114,7 +114,7 @@ class MusicPlayer {
         } catch (error) {
             console.error('Error processing queue:', error);
             queue.shift();
-            this.processQueue(message);
+            this.processQueue(interaction);
         }
     }
 
