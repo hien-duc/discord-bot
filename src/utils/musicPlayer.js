@@ -6,6 +6,7 @@ const ytSearch = require('yt-search');
 // Utility function to add delay between requests
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 const REQUEST_DELAY = 2000; // 2 seconds delay between requests
+const MAX_RETRIES = 3; // Maximum number of retries for failed requests
 
 class MusicPlayer {
     constructor() {
@@ -40,10 +41,17 @@ class MusicPlayer {
                 return query;
             }
 
-            await delay(REQUEST_DELAY);
-            const searched = await ytSearch(query);
-            if (!searched.videos.length) return null;
-            return searched.videos[0].url;
+            for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+                try {
+                    await delay(REQUEST_DELAY * attempt); // Exponential backoff
+                    const searched = await ytSearch(query);
+                    if (!searched.videos.length) return null;
+                    return searched.videos[0].url;
+                } catch (error) {
+                    if (attempt === MAX_RETRIES) throw error;
+                    console.warn(`Search attempt ${attempt} failed, retrying...`);
+                }
+            }
         } catch (error) {
             console.error('Error searching for song:', error);
             return null;
@@ -64,7 +72,21 @@ class MusicPlayer {
 
             const queue = this.queues.get(guildId);
             await delay(REQUEST_DELAY);
-            const songInfo = await ytdl.getInfo(songUrl);
+            let songInfo;
+            for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+                try {
+                    await delay(REQUEST_DELAY * attempt); // Exponential backoff
+                    songInfo = await ytdl.getInfo(songUrl);
+                    break;
+                } catch (error) {
+                    if (error.statusCode === 410) {
+                        throw new Error('This video is no longer available.');
+                    }
+                    if (attempt === MAX_RETRIES) throw error;
+                    console.warn(`Get info attempt ${attempt} failed, retrying...`);
+                }
+            }
+
             const song = {
                 title: songInfo.videoDetails.title,
                 url: songUrl,
@@ -97,11 +119,26 @@ class MusicPlayer {
         const currentSong = queue[0];
         try {
             await delay(REQUEST_DELAY);
-            const stream = ytdl(currentSong.url, {
-                filter: 'audioonly',
-                quality: 'highestaudio',
-                highWaterMark: 1 << 25
-            });
+            let stream;
+            for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+                try {
+                    await delay(REQUEST_DELAY * attempt); // Exponential backoff
+                    stream = ytdl(currentSong.url, {
+                        filter: 'audioonly',
+                        quality: 'highestaudio',
+                        highWaterMark: 1 << 25
+                    });
+                    break;
+                } catch (error) {
+                    if (error.statusCode === 410) {
+                        await interaction.channel.send(`The song "${currentSong.title}" is no longer available, skipping...`);
+                        queue.shift();
+                        return this.processQueue(interaction);
+                    }
+                    if (attempt === MAX_RETRIES) throw error;
+                    console.warn(`Stream attempt ${attempt} failed, retrying...`);
+                }
+            }
             const resource = createAudioResource(stream);
 
             player.play(resource);

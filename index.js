@@ -46,10 +46,18 @@ client.on('interactionCreate', async interaction => {
         await command.execute(interaction);
     } catch (error) {
         console.error('Error executing command:', error);
+        let errorMessage = 'There was an error executing this command!';
+
+        if (error.message === 'This video is no longer available.') {
+            errorMessage = 'Sorry, this video is no longer available.';
+        } else if (error.message === 'No song found!') {
+            errorMessage = 'Could not find the requested song. Please try a different search term.';
+        } else if (error.message.includes('voice channel')) {
+            errorMessage = error.message;
+        }
+
         const reply = {
-            content: error.message === 'Status code: 410' ?
-                'Sorry, this video is no longer available.' :
-                'There was an error executing this command!',
+            content: errorMessage,
             ephemeral: true
         };
 
