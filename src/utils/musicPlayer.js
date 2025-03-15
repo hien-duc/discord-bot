@@ -48,13 +48,16 @@ class MusicPlayer {
                     if (!searched.videos.length) return null;
                     return searched.videos[0].url;
                 } catch (error) {
+                    if (error.message.includes('Rate limit')) {
+                        throw error; // Let the rate limit error propagate up
+                    }
                     if (attempt === MAX_RETRIES) throw error;
                     console.warn(`Search attempt ${attempt} failed, retrying...`);
                 }
             }
         } catch (error) {
             console.error('Error searching for song:', error);
-            return null;
+            throw error; // Propagate the error to handle it in the play function
         }
     }
 

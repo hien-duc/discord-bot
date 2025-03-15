@@ -43,41 +43,59 @@ client.on('interactionCreate', async interaction => {
     if (!command) return;
 
     try {
+        if (!interaction.isRepliable()) {
+            console.log('Interaction is not repliable');
+            return;
+        }
+
         await command.execute(interaction);
     } catch (error) {
         console.error('Error executing command:', error);
         let errorMessage = 'There was an error executing this command!';
+        let shouldRespond = true;
 
+        // Handle known error codes
+        if (error.code === 10062 || error.code === 40060) {
+            console.log(`Interaction error: ${error.code} - ${error.message}`);
+            shouldRespond = false;
+        }
+
+        // Handle known error messages
         if (error.message === 'This video is no longer available.') {
             errorMessage = 'Sorry, this video is no longer available.';
         } else if (error.message === 'No song found!') {
             errorMessage = 'Could not find the requested song. Please try a different search term.';
         } else if (error.message.includes('voice channel')) {
             errorMessage = error.message;
+        } else if (error.message.includes('Rate limit')) {
+            errorMessage = 'Please wait a moment before trying again. The bot is experiencing high traffic.';
         }
 
-        const reply = {
-            content: errorMessage,
-            ephemeral: true
-        };
+        if (shouldRespond) {
+            try {
+                if (!interaction.isRepliable()) {
+                    console.log('Interaction is no longer repliable');
+                    return;
+                }
 
-        try {
-            // Check if the interaction is still valid
-            if (!interaction.isRepliable()) {
-                console.log('Interaction is no longer repliable');
-                return;
-            }
+                const reply = {
+                    content: errorMessage,
+                    ephemeral: true
+                };
 
-            if (interaction.deferred) {
-                await interaction.editReply(reply);
-            } else if (!interaction.replied) {
-                await interaction.reply(reply);
-            }
-        } catch (e) {
-            if (e.code === 40060) {
-                console.log('Interaction already acknowledged');
-            } else {
-                console.error('Error sending error response:', e);
+                if (!interaction.replied) {
+                    if (interaction.deferred) {
+                        await interaction.editReply(reply);
+                    } else {
+                        await interaction.reply(reply);
+                    }
+                }
+            } catch (e) {
+                if (e.code === 10062) {
+                    console.log('Unknown interaction - interaction expired');
+                } else {
+                    console.error('Error sending error response:', e);
+                }
             }
         }
     }
